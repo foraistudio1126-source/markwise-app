@@ -1,0 +1,2 @@
+npm install -g @anthropic-ai/claude-code
+/Users/anrakukentarou/claude && npx vite preview

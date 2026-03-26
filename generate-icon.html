@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Markwise Icon Generator</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      padding: 40px;
+      font-family: sans-serif;
+      color: #fff;
+    }
+    canvas { border-radius: 20px; }
+    .btn {
+      padding: 12px 28px;
+      background: #4a9eff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .btn:hover { background: #2280e0; }
+    .row { display: flex; gap: 30px; align-items: flex-start; }
+    label { font-size: 14px; color: #aaa; display: block; margin-bottom: 6px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h2 style="margin:0">Markwise Icon Generator</h2>
+
+  <div class="row">
+    <div>
+      <label>192 × 192</label>
+      <canvas id="c192" width="192" height="192"></canvas>
+    </div>
+    <div>
+      <label>512 × 512</label>
+      <canvas id="c512" width="512" height="512"></canvas>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="btn" onclick="download('c192','icon-192.png')">icon-192.png をダウンロード</button>
+    <button class="btn" onclick="download('c512','icon-512.png')">icon-512.png をダウンロード</button>
+  </div>
+
+  <script>
+    function drawIcon(canvas) {
+      const s = canvas.width;
+      const ctx = canvas.getContext('2d');
+      const r = s / 192; // scale ratio
+
+      // Background
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, s, s);
+
+      // ---- Book ----
+      const bookColor = '#4a5270';
+      const bookDark  = '#3a4260';
+      const bookLight = '#5a6280';
+
+      ctx.save();
+      ctx.translate(s / 2, s / 2);
+      ctx.scale(r, r);
+
+      // Left page
+      ctx.beginPath();
+      ctx.moveTo(-10, -52);
+      ctx.bezierCurveTo(-20, -50, -72, -42, -80, -30);
+      ctx.lineTo(-82, 38);
+      ctx.bezierCurveTo(-70, 28, -20, 20, -10, 22);
+      ctx.closePath();
+      ctx.fillStyle = bookColor;
+      ctx.fill();
+
+      // Right page
+      ctx.beginPath();
+      ctx.moveTo(10, -52);
+      ctx.bezierCurveTo(20, -50, 72, -42, 80, -30);
+      ctx.lineTo(82, 38);
+      ctx.bezierCurveTo(70, 28, 20, 20, 10, 22);
+      ctx.closePath();
+      ctx.fillStyle = bookDark;
+      ctx.fill();
+
+      // Book spine bottom
+      ctx.beginPath();
+      ctx.moveTo(-10, 22);
+      ctx.lineTo(0, 35);
+      ctx.lineTo(10, 22);
+      ctx.closePath();
+      ctx.fillStyle = bookLight;
+      ctx.fill();
+
+      // Book spine top
+      ctx.beginPath();
+      ctx.moveTo(-10, -52);
+      ctx.lineTo(0, -62);
+      ctx.lineTo(10, -52);
+      ctx.closePath();
+      ctx.fillStyle = bookLight;
+      ctx.fill();
+
+      // ---- M letter ----
+      ctx.fillStyle = '#2a3050';
+      ctx.font = `bold ${108}px Georgia, serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('M', 0, -10);
+
+      // ---- # symbol (top-left) ----
+      ctx.fillStyle = '#2a3050';
+      ctx.font = `bold ${34}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('#', -42, -48);
+
+      // ---- * symbol (bottom-right) ----
+      ctx.font = `bold ${30}px monospace`;
+      ctx.fillText('*', 42, 10);
+
+      ctx.restore();
+    }
+
+    function download(id, filename) {
+      const canvas = document.getElementById(id);
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    drawIcon(document.getElementById('c192'));
+    drawIcon(document.getElementById('c512'));
+  </script>
+</body>
+</html>
