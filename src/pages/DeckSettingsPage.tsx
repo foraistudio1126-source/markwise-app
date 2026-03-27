@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import type { Deck, Card } from '../types'
+import { DEFAULT_EXPLANATION_DISPLAY } from '../types'
 import { getLatestRecord, loadHistory, saveHistory } from '../utils/storage'
 import { exportToMarkdown, exportToMarkdownForTerm } from '../utils/markdown'
 
@@ -12,9 +13,10 @@ interface Props {
   onAddDeck: (deck: Deck) => void
   onAddCards: (cards: Card[]) => void
   onUpdateCard: (id: string, updates: Partial<Card>) => void
+  onUpdateDeck: (id: string, updates: Partial<Deck>) => void
 }
 
-export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, onUpdateCard }: Props) {
+export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, onUpdateCard, onUpdateDeck }: Props) {
   const { deckId } = useParams<{ deckId: string }>()
   const navigate = useNavigate()
   const deck = decks.find(d => d.id === deckId)
@@ -203,7 +205,36 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
         )}
       </section>
 
-      {/* ③ 反転 */}
+      {/* ③ 解説表示設定 */}
+      <section className="settings-section">
+        <h2 className="settings-section-title">💬 解説の表示タイミング</h2>
+        <p className="settings-description">
+          答え合わせ後、どの結果のときに解説を表示するか設定します。
+        </p>
+        {(['correct', 'partial', 'wrong'] as const).map(rating => {
+          const display = deck.explanationDisplay ?? DEFAULT_EXPLANATION_DISPLAY
+          const labels = { correct: '⭕️ 正解', partial: '🔺 惜しい', wrong: '❌ 不正解' }
+          return (
+            <label key={rating} className="settings-toggle-row">
+              <span>{labels[rating]}</span>
+              <input
+                type="checkbox"
+                checked={display[rating]}
+                onChange={e => {
+                  onUpdateDeck(deck.id, {
+                    explanationDisplay: {
+                      ...display,
+                      [rating]: e.target.checked,
+                    }
+                  })
+                }}
+              />
+            </label>
+          )
+        })}
+      </section>
+
+      {/* ④ 反転 */}
       <section className="settings-section">
         <h2 className="settings-section-title">🔄 カードを反転</h2>
         <p className="settings-description">

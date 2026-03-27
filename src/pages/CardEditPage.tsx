@@ -21,6 +21,7 @@ export default function CardEditPage({ decks, cards, onAddCard, onUpdateCard }: 
   const [pronunciation, setPronunciation] = useState(existingCard?.pronunciation ?? '')
   const [etymology, setEtymology] = useState(existingCard?.etymology ?? '')
   const [meaning, setMeaning] = useState(existingCard?.meaning ?? '')
+  const [definition, setDefinition] = useState(existingCard?.definition ?? '')
   const [synonyms, setSynonyms] = useState(existingCard?.synonyms ?? '')
   const [antonyms, setAntonyms] = useState(existingCard?.antonyms ?? '')
   const [exampleEn, setExampleEn] = useState(existingCard?.exampleEn ?? '')
@@ -50,6 +51,7 @@ export default function CardEditPage({ decks, cards, onAddCard, onUpdateCard }: 
           pronunciation: pronunciation.trim(),
           etymology: etymology.trim(),
           meaning: meaning.trim(),
+          definition: definition.trim(),
           synonyms: synonyms.trim(),
           antonyms: antonyms.trim(),
           exampleEn: exampleEn.trim(),
@@ -64,6 +66,7 @@ export default function CardEditPage({ decks, cards, onAddCard, onUpdateCard }: 
           pronunciation: pronunciation.trim(),
           etymology: etymology.trim(),
           meaning: meaning.trim(),
+          definition: definition.trim(),
           synonyms: synonyms.trim(),
           antonyms: antonyms.trim(),
           exampleEn: exampleEn.trim(),
@@ -98,6 +101,7 @@ export default function CardEditPage({ decks, cards, onAddCard, onUpdateCard }: 
           pronunciation: '',
           etymology: '',
           meaning: meaningVal,
+          definition: '',
           synonyms: '',
           antonyms: '',
           exampleEn: '',
@@ -257,6 +261,15 @@ export default function CardEditPage({ decks, cards, onAddCard, onUpdateCard }: 
           onChange={e => setEtymology(e.target.value)}
           className="input"
           placeholder="com-(共に) + prehend(つかむ)"
+        />
+
+        <label className="form-label">語義説明（英語定義）</label>
+        <textarea
+          value={definition}
+          onChange={e => setDefinition(e.target.value)}
+          className="input textarea"
+          placeholder="sudden and unexpected, and often unpleasant"
+          rows={2}
         />
 
         <label className="form-label">類義語</label>

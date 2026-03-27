@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import type { Deck, Card, Rating } from '../types'
-import { getPriority } from '../types'
+import { getPriority, DEFAULT_EXPLANATION_DISPLAY } from '../types'
 import { getLatestRecord, addStudyRecord } from '../utils/storage'
 
 interface Props {
@@ -86,10 +86,16 @@ export default function StudyPage({ decks, cards }: Props) {
       timestamp: Date.now(),
     })
 
-    if (rating === 'correct') {
-      goNext()
-    } else {
+    const display = deck?.explanationDisplay ?? DEFAULT_EXPLANATION_DISPLAY
+    const shouldShow =
+      (rating === 'correct' && display.correct) ||
+      (rating === 'partial' && display.partial) ||
+      (rating === 'wrong' && display.wrong)
+
+    if (shouldShow) {
       setStep('explanation')
+    } else {
+      goNext()
     }
   }
 
@@ -260,6 +266,11 @@ export default function StudyPage({ decks, cards }: Props) {
             ) : (
               // 単語タイプ
               <>
+                {currentCard.definition && (
+                  <div className="explanation-item explanation-definition">
+                    <span className="explanation-label">語義:</span> {currentCard.definition}
+                  </div>
+                )}
                 {currentCard.synonyms && (
                   <div className="explanation-item">
                     <span className="explanation-label">類義語:</span> {currentCard.synonyms}

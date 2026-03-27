@@ -97,6 +97,7 @@ export default function App() {
                 onAddDeck={addDeck}
                 onAddCards={addCards}
                 onUpdateCard={updateCard}
+                onUpdateDeck={updateDeck}
               />
             }
           />

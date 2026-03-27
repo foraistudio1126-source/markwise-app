@@ -15,12 +15,25 @@ export interface TermConfig {
   explanationColumns: number[]     // 解説面の列インデックス (0-based)
 }
 
+export interface ExplanationDisplay {
+  correct: boolean  // ⭕️の時に解説を表示するか
+  partial: boolean  // 🔺の時に解説を表示するか
+  wrong: boolean    // ❌の時に解説を表示するか
+}
+
+export const DEFAULT_EXPLANATION_DISPLAY: ExplanationDisplay = {
+  correct: false,
+  partial: true,
+  wrong: true,
+}
+
 export interface Deck {
   id: string
   name: string
   type: DeckType
   wordConfig?: WordConfig
   termConfig?: TermConfig
+  explanationDisplay?: ExplanationDisplay
   createdAt: number
   updatedAt: number
 }
@@ -33,6 +46,7 @@ export interface Card {
   pronunciation: string
   etymology: string
   meaning: string
+  definition: string  // 語義説明（例: "sudden and unexpected, and often unpleasant"）
   synonyms: string
   antonyms: string
   exampleEn: string
