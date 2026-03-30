@@ -34,6 +34,7 @@ export interface Deck {
   wordConfig?: WordConfig
   termConfig?: TermConfig
   explanationDisplay?: ExplanationDisplay
+  importSettings?: ImportSettings  // 単語タイプのMarkdownインポート設定
   createdAt: number
   updatedAt: number
 }
@@ -85,6 +86,20 @@ export function getPriority(selfRating: Rating, answerRating: Rating): number {
 export const DEFAULT_WORD_CONFIG: WordConfig = {
   pronunciationSide: 'question',
   etymologySide: 'question',
+}
+
+export interface ImportSettings {
+  includeEtymology: boolean         // 接頭辞・接尾辞
+  includeDefinition: boolean        // 語義説明
+  includeSynonymsAntonyms: boolean  // 類義語・対義語
+  includeExamples: boolean          // 例文
+}
+
+export const DEFAULT_IMPORT_SETTINGS: ImportSettings = {
+  includeEtymology: false,
+  includeDefinition: false,
+  includeSynonymsAntonyms: true,
+  includeExamples: true,
 }
 
 export const DECK_TYPE_LABELS: Record<DeckType, string> = {

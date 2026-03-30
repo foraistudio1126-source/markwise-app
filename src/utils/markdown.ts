@@ -1,6 +1,18 @@
-import type { Card, TermConfig } from '../types'
+import type { Card, TermConfig, ImportSettings } from '../types'
+import { DEFAULT_IMPORT_SETTINGS } from '../types'
 
-export function parseMarkdownTable(text: string, deckId: string): Card[] {
+export function parseMarkdownTable(text: string, deckId: string, importSettings?: ImportSettings): Card[] {
+  const settings = { ...DEFAULT_IMPORT_SETTINGS, ...importSettings }
+
+  // 動的に列インデックスを計算
+  // 列順: 単語(0), 意味(1), [接頭辞(2)?], [語義説明(?)?], [類義語対義語(?)?], [例文En(?)?], [例文Ja(?)?]
+  let nextIdx = 2
+  const etymologyIdx = settings.includeEtymology ? nextIdx++ : -1
+  const definitionIdx = settings.includeDefinition ? nextIdx++ : -1
+  const synonymsIdx = settings.includeSynonymsAntonyms ? nextIdx++ : -1
+  const exampleEnIdx = settings.includeExamples ? nextIdx++ : -1
+  const exampleJaIdx = settings.includeExamples ? nextIdx++ : -1
+
   // 前処理: <br> タグを全てスペースに変換
   let normalized = text.replace(/<br\s*\/?>/gi, ' ')
 
@@ -15,7 +27,8 @@ export function parseMarkdownTable(text: string, deckId: string): Card[] {
       const lastLine = joinedLines[joinedLines.length - 1]
       const isLastLineTable = lastLine.startsWith('|')
       const lastPipeCount = (lastLine.match(/\|/g) || []).length
-      if (isLastLineTable && lastPipeCount < 6 && !trimmed.startsWith('#')) {
+      const expectedCols = nextIdx + 1  // 期待する最大列数 + 区切り
+      if (isLastLineTable && lastPipeCount < expectedCols && !trimmed.startsWith('#')) {
         joinedLines[joinedLines.length - 1] = lastLine + ' ' + trimmed
         continue
       }
@@ -41,9 +54,6 @@ export function parseMarkdownTable(text: string, deckId: string): Card[] {
 
     const wordAndPron = (cells[0] || '').replace(/^\*\*(.+?)\*\*/, '$1')
     const meaning = cells[1] || ''
-    const synonymsAntonyms = cells[2] || ''
-    const exampleEn = cells[3] || ''
-    const exampleJa = cells[4] || ''
 
     const pronMatch = wordAndPron.match(/^(.+?)\s*[\[\/](.+?)[\]\/]\s*$/)
     let word = wordAndPron
@@ -52,14 +62,19 @@ export function parseMarkdownTable(text: string, deckId: string): Card[] {
       word = pronMatch[1].trim()
       pronunciation = `[${pronMatch[2]}]`
     }
-
     word = word.replace(/\s+/g, ' ').trim()
+
+    const etymologyRaw = etymologyIdx >= 0 ? (cells[etymologyIdx] || '') : ''
+    const definitionRaw = definitionIdx >= 0 ? (cells[definitionIdx] || '') : ''
+    const synonymsAntonymsRaw = synonymsIdx >= 0 ? (cells[synonymsIdx] || '') : ''
+    const exampleEn = exampleEnIdx >= 0 ? (cells[exampleEnIdx] || '') : ''
+    const exampleJa = exampleJaIdx >= 0 ? (cells[exampleJaIdx] || '') : ''
 
     let synonyms = ''
     let antonyms = ''
-    if (synonymsAntonyms && synonymsAntonyms !== '-') {
-      const synMatch = synonymsAntonyms.match(/類[:：]\s*(.+?)(?:\s+対[:：]|$)/)
-      const antMatch = synonymsAntonyms.match(/対[:：]\s*(.+)$/)
+    if (synonymsAntonymsRaw && synonymsAntonymsRaw !== '-') {
+      const synMatch = synonymsAntonymsRaw.match(/類[:：]\s*(.+?)(?:\s+対[:：]|$)/)
+      const antMatch = synonymsAntonymsRaw.match(/対[:：]\s*(.+)$/)
       if (synMatch) synonyms = synMatch[1].trim()
       if (antMatch) antonyms = antMatch[1].trim()
     }
@@ -70,9 +85,9 @@ export function parseMarkdownTable(text: string, deckId: string): Card[] {
       deckId,
       word: word.trim(),
       pronunciation,
-      etymology: '',
+      etymology: cleanDash(etymologyRaw),
       meaning: cleanDash(meaning),
-      definition: '',
+      definition: cleanDash(definitionRaw),
       synonyms: cleanDash(synonyms),
       antonyms: cleanDash(antonyms),
       exampleEn: cleanDash(exampleEn),

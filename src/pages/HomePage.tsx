@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Deck, DeckType, WordConfig } from '../types'
-import { DECK_TYPE_LABELS, DEFAULT_WORD_CONFIG } from '../types'
+import type { Deck, DeckType, WordConfig, ExplanationDisplay } from '../types'
+import { DECK_TYPE_LABELS, DEFAULT_WORD_CONFIG, DEFAULT_EXPLANATION_DISPLAY } from '../types'
 import { getLatestRecord } from '../utils/storage'
 import type { Card } from '../types'
 
@@ -29,6 +29,11 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
   const [termColumnNames, setTermColumnNames] = useState<string[]>(['', '', '', ''])
   const [termQuestionEnd, setTermQuestionEnd] = useState(1)  // 問題面: 1列目 〜 N列目
   const [termAnswerEnd, setTermAnswerEnd] = useState(2)      // 答え面: N+1列目 〜 M列目  (解説面: M+1列目 〜 最後)
+
+  // 詳細設定
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showTermConfig, setShowTermConfig] = useState(true)
+  const [newExplanationDisplay, setNewExplanationDisplay] = useState<ExplanationDisplay>({ ...DEFAULT_EXPLANATION_DISPLAY })
 
   const handleAdd = () => {
     if (!newName.trim()) return
@@ -59,6 +64,8 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
       }
     }
 
+    deck.explanationDisplay = { ...newExplanationDisplay }
+
     onAddDeck(deck)
     setNewName('')
     setNewType('word')
@@ -67,6 +74,9 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
     setTermColumnNames(['', '', '', ''])
     setTermQuestionEnd(1)
     setTermAnswerEnd(2)
+    setShowAdvanced(false)
+    setShowTermConfig(true)
+    setNewExplanationDisplay({ ...DEFAULT_EXPLANATION_DISPLAY })
     setShowForm(false)
   }
 
@@ -200,113 +210,175 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
             ))}
           </select>
 
-          {/* 単語タイプの設定 */}
+          {/* 単語タイプの詳細設定 */}
           {newType === 'word' && (
             <div className="config-section">
-              <h4>表示設定</h4>
-              <label className="form-label">発音記号の表示面</label>
-              <select
-                value={wordConfig.pronunciationSide}
-                onChange={e => setWordConfig(prev => ({ ...prev, pronunciationSide: e.target.value as 'question' | 'answer' }))}
-                className="input"
+              <button
+                type="button"
+                className="config-toggle-btn"
+                onClick={() => setShowAdvanced(v => !v)}
               >
-                <option value="question">問題面</option>
-                <option value="answer">答え面</option>
-              </select>
-              <label className="form-label">接頭辞・語源の表示面</label>
-              <select
-                value={wordConfig.etymologySide}
-                onChange={e => setWordConfig(prev => ({ ...prev, etymologySide: e.target.value as 'question' | 'answer' }))}
-                className="input"
-              >
-                <option value="question">問題面</option>
-                <option value="answer">答え面</option>
-              </select>
+                <span>詳細設定</span>
+                <span className="toggle-arrow">{showAdvanced ? '▲' : '▼'}</span>
+              </button>
+              {showAdvanced && (
+                <>
+                  <label className="form-label">発音記号の表示面</label>
+                  <select
+                    value={wordConfig.pronunciationSide}
+                    onChange={e => setWordConfig(prev => ({ ...prev, pronunciationSide: e.target.value as 'question' | 'answer' }))}
+                    className="input"
+                  >
+                    <option value="question">問題面</option>
+                    <option value="answer">答え面</option>
+                  </select>
+                  <label className="form-label">接頭辞・語源の表示面</label>
+                  <select
+                    value={wordConfig.etymologySide}
+                    onChange={e => setWordConfig(prev => ({ ...prev, etymologySide: e.target.value as 'question' | 'answer' }))}
+                    className="input"
+                  >
+                    <option value="question">問題面</option>
+                    <option value="answer">答え面</option>
+                  </select>
+                  <label className="form-label">解説の表示タイミング</label>
+                  {(['correct', 'partial', 'wrong'] as const).map(rating => {
+                    const labels = { correct: '⭕️ 正解', partial: '🔺 惜しい', wrong: '❌ 不正解' }
+                    return (
+                      <label key={rating} className="config-toggle-row">
+                        <span>{labels[rating]}</span>
+                        <input
+                          type="checkbox"
+                          checked={newExplanationDisplay[rating]}
+                          onChange={e => setNewExplanationDisplay(prev => ({ ...prev, [rating]: e.target.checked }))}
+                        />
+                      </label>
+                    )
+                  })}
+                </>
+              )}
             </div>
           )}
 
           {/* 用語タイプの設定 */}
           {newType === 'term' && (
-            <div className="config-section">
-              <h4>Markdown列の設定</h4>
-              <label className="form-label">列数</label>
-              <input
-                type="number"
-                min={2}
-                max={10}
-                value={termTotalColumns}
-                onChange={e => handleTermColumnsChange(Math.max(2, Math.min(10, parseInt(e.target.value) || 2)))}
-                className="input"
-              />
-              <label className="form-label">各列の名前</label>
-              {termColumnNames.slice(0, termTotalColumns).map((name, i) => (
-                <input
-                  key={i}
-                  type="text"
-                  placeholder={`${i + 1}列目の名前`}
-                  value={name}
-                  onChange={e => {
-                    const next = [...termColumnNames]
-                    next[i] = e.target.value
-                    setTermColumnNames(next)
-                  }}
-                  className="input"
-                />
-              ))}
-              <label className="form-label">
-                問題面: {termQuestionEnd}列目まで
-              </label>
-              <select
-                value={termQuestionEnd}
-                onChange={e => {
-                  const val = parseInt(e.target.value)
-                  setTermQuestionEnd(val)
-                  if (termAnswerEnd <= val) setTermAnswerEnd(val + 1)
-                }}
-                className="input"
-              >
-                {Array.from({ length: termTotalColumns - 2 }, (_, i) => i + 1).map(n => (
-                  <option key={n} value={n}>{n}列目まで</option>
-                ))}
-              </select>
-
-              <label className="form-label">
-                答え面: {termAnswerEnd}列目まで
-              </label>
-              <select
-                value={termAnswerEnd}
-                onChange={e => setTermAnswerEnd(parseInt(e.target.value))}
-                className="input"
-              >
-                {Array.from({ length: termTotalColumns - termQuestionEnd - 1 }, (_, i) => termQuestionEnd + 1 + i).map(n => (
-                  <option key={n} value={n}>{n}列目まで</option>
-                ))}
-              </select>
-
-              <label className="form-label">
-                解説面: {termAnswerEnd + 1}列目 〜 {termTotalColumns}列目（自動）
-              </label>
-
-              {/* プレビュー */}
-              <div className="term-preview">
-                <div className="term-preview-row">
-                  {termColumnNames.slice(0, termTotalColumns).map((name, i) => {
-                    const isQuestion = i < termQuestionEnd
-                    const isAnswer = i >= termQuestionEnd && i < termAnswerEnd
-                    const isExplanation = i >= termAnswerEnd
-                    return (
-                      <span
+            <>
+              <div className="config-section">
+                <button
+                  type="button"
+                  className="config-toggle-btn"
+                  onClick={() => setShowTermConfig(v => !v)}
+                >
+                  <span>Markdown列の設定</span>
+                  <span className="toggle-arrow">{showTermConfig ? '▲' : '▼'}</span>
+                </button>
+                {showTermConfig && (
+                  <>
+                    <label className="form-label">列数</label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={10}
+                      value={termTotalColumns}
+                      onChange={e => handleTermColumnsChange(Math.max(2, Math.min(10, parseInt(e.target.value) || 2)))}
+                      className="input"
+                    />
+                    <label className="form-label">各列の名前</label>
+                    {termColumnNames.slice(0, termTotalColumns).map((name, i) => (
+                      <input
                         key={i}
-                        className={`term-preview-col ${isQuestion ? 'question-col' : ''} ${isAnswer ? 'answer-col' : ''} ${isExplanation ? 'explanation-col' : ''}`}
-                      >
-                        {name || `${i + 1}列目`}
-                        <small>{isQuestion ? '問題' : isAnswer ? '答え' : '解説'}</small>
-                      </span>
-                    )
-                  })}
-                </div>
+                        type="text"
+                        placeholder={`${i + 1}列目の名前`}
+                        value={name}
+                        onChange={e => {
+                          const next = [...termColumnNames]
+                          next[i] = e.target.value
+                          setTermColumnNames(next)
+                        }}
+                        className="input"
+                      />
+                    ))}
+                    <label className="form-label">
+                      問題面: {termQuestionEnd}列目まで
+                    </label>
+                    <select
+                      value={termQuestionEnd}
+                      onChange={e => {
+                        const val = parseInt(e.target.value)
+                        setTermQuestionEnd(val)
+                        if (termAnswerEnd <= val) setTermAnswerEnd(val + 1)
+                      }}
+                      className="input"
+                    >
+                      {Array.from({ length: termTotalColumns - 2 }, (_, i) => i + 1).map(n => (
+                        <option key={n} value={n}>{n}列目まで</option>
+                      ))}
+                    </select>
+                    <label className="form-label">
+                      答え面: {termAnswerEnd}列目まで
+                    </label>
+                    <select
+                      value={termAnswerEnd}
+                      onChange={e => setTermAnswerEnd(parseInt(e.target.value))}
+                      className="input"
+                    >
+                      {Array.from({ length: termTotalColumns - termQuestionEnd - 1 }, (_, i) => termQuestionEnd + 1 + i).map(n => (
+                        <option key={n} value={n}>{n}列目まで</option>
+                      ))}
+                    </select>
+                    <label className="form-label">
+                      解説面: {termAnswerEnd + 1}列目 〜 {termTotalColumns}列目（自動）
+                    </label>
+                    <div className="term-preview">
+                      <div className="term-preview-row">
+                        {termColumnNames.slice(0, termTotalColumns).map((name, i) => {
+                          const isQuestion = i < termQuestionEnd
+                          const isAnswer = i >= termQuestionEnd && i < termAnswerEnd
+                          const isExplanation = i >= termAnswerEnd
+                          return (
+                            <span
+                              key={i}
+                              className={`term-preview-col ${isQuestion ? 'question-col' : ''} ${isAnswer ? 'answer-col' : ''} ${isExplanation ? 'explanation-col' : ''}`}
+                            >
+                              {name || `${i + 1}列目`}
+                              <small>{isQuestion ? '問題' : isAnswer ? '答え' : '解説'}</small>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
+              <div className="config-section">
+                <button
+                  type="button"
+                  className="config-toggle-btn"
+                  onClick={() => setShowAdvanced(v => !v)}
+                >
+                  <span>詳細設定</span>
+                  <span className="toggle-arrow">{showAdvanced ? '▲' : '▼'}</span>
+                </button>
+                {showAdvanced && (
+                  <>
+                    <label className="form-label">解説の表示タイミング</label>
+                    {(['correct', 'partial', 'wrong'] as const).map(rating => {
+                      const labels = { correct: '⭕️ 正解', partial: '🔺 惜しい', wrong: '❌ 不正解' }
+                      return (
+                        <label key={rating} className="config-toggle-row">
+                          <span>{labels[rating]}</span>
+                          <input
+                            type="checkbox"
+                            checked={newExplanationDisplay[rating]}
+                            onChange={e => setNewExplanationDisplay(prev => ({ ...prev, [rating]: e.target.checked }))}
+                          />
+                        </label>
+                      )
+                    })}
+                  </>
+                )}
+              </div>
+            </>
           )}
 
           <div className="form-actions">

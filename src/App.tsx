@@ -67,6 +67,7 @@ export default function App() {
               <ImportPage
                 decks={decks}
                 onAddCards={addCards}
+                onUpdateDeck={updateDeck}
               />
             }
           />
