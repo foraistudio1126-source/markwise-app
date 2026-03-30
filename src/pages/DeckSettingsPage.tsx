@@ -234,7 +234,43 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
         })}
       </section>
 
-      {/* ④ 反転 */}
+      {/* ④ 表示面設定（単語タイプのみ） */}
+      {deck.type === 'word' && deck.wordConfig && (
+        <section className="settings-section">
+          <h2 className="settings-section-title">👀 表示面の設定</h2>
+          <p className="settings-description">
+            各情報をどちらの面に表示するか設定します。
+          </p>
+          <label className="settings-toggle-row">
+            <span>発音記号</span>
+            <select
+              className="settings-side-select"
+              value={deck.wordConfig.pronunciationSide}
+              onChange={e => onUpdateDeck(deck.id, {
+                wordConfig: { ...deck.wordConfig!, pronunciationSide: e.target.value as 'question' | 'answer' }
+              })}
+            >
+              <option value="question">問題面</option>
+              <option value="answer">答え面</option>
+            </select>
+          </label>
+          <label className="settings-toggle-row">
+            <span>接頭辞・語源</span>
+            <select
+              className="settings-side-select"
+              value={deck.wordConfig.etymologySide}
+              onChange={e => onUpdateDeck(deck.id, {
+                wordConfig: { ...deck.wordConfig!, etymologySide: e.target.value as 'question' | 'answer' }
+              })}
+            >
+              <option value="question">問題面</option>
+              <option value="answer">答え面</option>
+            </select>
+          </label>
+        </section>
+      )}
+
+      {/* ⑤ 反転 */}
       <section className="settings-section">
         <h2 className="settings-section-title">🔄 カードを反転</h2>
         <p className="settings-description">

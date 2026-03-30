@@ -829,6 +829,17 @@
   accent-color: var(--primary);
 }
 
+.settings-side-select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
 .settings-filter-buttons {
   display: flex;
   gap: 0.4rem;
