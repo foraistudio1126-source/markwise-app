@@ -1,8 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import type { Deck, Card } from '../types'
-import { DEFAULT_EXPLANATION_DISPLAY } from '../types'
-import { getLatestRecord, loadHistory, saveHistory } from '../utils/storage'
+import {
+  DEFAULT_EXPLANATION_DISPLAY,
+  DEFAULT_AUTO_ADVANCE,
+  DEFAULT_REVIEW_INTERVAL,
+} from '../types'
+import { getCardSRS, loadHistory, saveHistory, loadSRS, saveSRS } from '../utils/storage'
 import { exportToMarkdown, exportToMarkdownForTerm } from '../utils/markdown'
 
 type MarkdownFilter = 'all' | 'mastered' | 'unmastered'
@@ -29,14 +33,14 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
 
   const masteredCards = useMemo(() =>
     deckCards.filter(c => {
-      const r = getLatestRecord(c.id)
-      return r?.answerRating === 'correct'
+      const srs = getCardSRS(c.id)
+      return srs?.status === 'mastered'
     }), [deckCards])
 
   const unmasteredCards = useMemo(() =>
     deckCards.filter(c => {
-      const r = getLatestRecord(c.id)
-      return !r || r.answerRating !== 'correct'
+      const srs = getCardSRS(c.id)
+      return !srs || srs.status !== 'mastered'
     }), [deckCards])
 
   const filteredCards = useMemo(() => {
@@ -70,6 +74,9 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
       type: deck.type,
       wordConfig: deck.wordConfig ? { ...deck.wordConfig } : undefined,
       termConfig: deck.termConfig ? { ...deck.termConfig, columnNames: [...deck.termConfig.columnNames], questionColumns: [...deck.termConfig.questionColumns], answerColumns: [...deck.termConfig.answerColumns], explanationColumns: [...(deck.termConfig.explanationColumns || [])] } : undefined,
+      explanationDisplay: deck.explanationDisplay ? { ...deck.explanationDisplay } : undefined,
+      autoAdvance: deck.autoAdvance ? { ...deck.autoAdvance } : undefined,
+      reviewInterval: deck.reviewInterval ? { ...deck.reviewInterval } : undefined,
       createdAt: now,
       updatedAt: now,
     }
@@ -110,7 +117,6 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
     }
 
     if (deck.type === 'term' && deck.termConfig) {
-      // 用語タイプ: columns の問題面と答え面を入れ替え
       for (const card of deckCards) {
         if (card.columns) {
           const newWord = card.columns[deck.termConfig.answerColumns[0]] || ''
@@ -119,7 +125,6 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
         }
       }
     } else {
-      // 単語タイプ
       for (const card of deckCards) {
         onUpdateCard(card.id, {
           word: card.meaning,
@@ -131,14 +136,21 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
       }
     }
 
+    // 学習履歴とSRSデータをリセット
     const history = loadHistory()
+    const srsData = loadSRS()
     for (const card of deckCards) {
       delete history[card.id]
+      delete srsData[card.id]
     }
     saveHistory(history)
+    saveSRS(srsData)
     setFlipDone(true)
     setTimeout(() => setFlipDone(false), 2000)
   }
+
+  const autoAdvance = deck.autoAdvance ?? DEFAULT_AUTO_ADVANCE
+  const reviewInterval = deck.reviewInterval ?? DEFAULT_REVIEW_INTERVAL
 
   return (
     <div className="page">
@@ -147,7 +159,173 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
         <h1>設定</h1>
       </header>
 
-      {/* ① コピー */}
+      {/* ===== 編集セクション ===== */}
+      <h2 className="settings-group-title">編集</h2>
+
+      {/* 解説表示設定 */}
+      <section className="settings-section">
+        <h2 className="settings-section-title">💬 解説の表示タイミング</h2>
+        <p className="settings-description">
+          答え合わせ後、どの結果のときに解説を表示するか設定します。
+        </p>
+        {(['correct', 'partial', 'wrong'] as const).map(rating => {
+          const display = deck.explanationDisplay ?? DEFAULT_EXPLANATION_DISPLAY
+          const labels = { correct: '⭕️ 正解', partial: '🔺 惜しい', wrong: '❌ 不正解' }
+          return (
+            <label key={rating} className="settings-toggle-row">
+              <span>{labels[rating]}</span>
+              <input
+                type="checkbox"
+                checked={display[rating]}
+                onChange={e => {
+                  onUpdateDeck(deck.id, {
+                    explanationDisplay: {
+                      ...display,
+                      [rating]: e.target.checked,
+                    }
+                  })
+                }}
+              />
+            </label>
+          )
+        })}
+      </section>
+
+      {/* 表示面の設定（単語タイプのみ） */}
+      {deck.type === 'word' && deck.wordConfig && (
+        <section className="settings-section">
+          <h2 className="settings-section-title">👀 表示面の設定</h2>
+          <p className="settings-description">
+            各情報をどちらの面に表示するか設定します。
+          </p>
+          <label className="settings-toggle-row">
+            <span>発音記号</span>
+            <select
+              className="settings-side-select"
+              value={deck.wordConfig.pronunciationSide}
+              onChange={e => onUpdateDeck(deck.id, {
+                wordConfig: { ...deck.wordConfig!, pronunciationSide: e.target.value as 'question' | 'answer' }
+              })}
+            >
+              <option value="question">問題面</option>
+              <option value="answer">答え面</option>
+            </select>
+          </label>
+          <label className="settings-toggle-row">
+            <span>接頭辞・語源</span>
+            <select
+              className="settings-side-select"
+              value={deck.wordConfig.etymologySide}
+              onChange={e => onUpdateDeck(deck.id, {
+                wordConfig: { ...deck.wordConfig!, etymologySide: e.target.value as 'question' | 'answer' }
+              })}
+            >
+              <option value="question">問題面</option>
+              <option value="answer">答え面</option>
+            </select>
+          </label>
+        </section>
+      )}
+
+      {/* 自動コマ送り */}
+      <section className="settings-section">
+        <h2 className="settings-section-title">⏱ 自動コマ送り</h2>
+        <p className="settings-description">
+          設定した秒数後にカードを自動で裏返します。自動送りされたカードは未定着扱いになります。
+        </p>
+        <label className="settings-toggle-row">
+          <span>自動コマ送り</span>
+          <input
+            type="checkbox"
+            checked={autoAdvance.enabled}
+            onChange={e => onUpdateDeck(deck.id, {
+              autoAdvance: { ...autoAdvance, enabled: e.target.checked }
+            })}
+          />
+        </label>
+        {autoAdvance.enabled && (
+          <label className="settings-toggle-row">
+            <span>秒数</span>
+            <input
+              type="number"
+              className="settings-number-input"
+              min={1}
+              max={120}
+              value={autoAdvance.seconds}
+              onChange={e => onUpdateDeck(deck.id, {
+                autoAdvance: { ...autoAdvance, seconds: Math.max(1, parseInt(e.target.value) || 5) }
+              })}
+            />
+          </label>
+        )}
+      </section>
+
+      {/* 復習間隔設定 */}
+      <section className="settings-section">
+        <h2 className="settings-section-title">📅 復習間隔</h2>
+        <p className="settings-description">
+          定着したカードの復習間隔を設定します。
+        </p>
+        <label className="settings-toggle-row">
+          <span>モード</span>
+          <select
+            className="settings-side-select"
+            value={reviewInterval.mode}
+            onChange={e => onUpdateDeck(deck.id, {
+              reviewInterval: { ...reviewInterval, mode: e.target.value as 'fixed' | 'increasing' }
+            })}
+          >
+            <option value="increasing">増加</option>
+            <option value="fixed">固定</option>
+          </select>
+        </label>
+        <label className="settings-toggle-row">
+          <span>基本間隔（日）</span>
+          <input
+            type="number"
+            className="settings-number-input"
+            min={1}
+            max={30}
+            value={reviewInterval.baseDays}
+            onChange={e => onUpdateDeck(deck.id, {
+              reviewInterval: { ...reviewInterval, baseDays: Math.max(1, parseInt(e.target.value) || 1) }
+            })}
+          />
+        </label>
+        {reviewInterval.mode === 'increasing' && (
+          <label className="settings-toggle-row">
+            <span>上限（日）</span>
+            <input
+              type="number"
+              className="settings-number-input"
+              min={reviewInterval.baseDays}
+              max={365}
+              value={reviewInterval.maxDays}
+              onChange={e => onUpdateDeck(deck.id, {
+                reviewInterval: {
+                  ...reviewInterval,
+                  maxDays: Math.max(reviewInterval.baseDays, parseInt(e.target.value) || 7)
+                }
+              })}
+            />
+          </label>
+        )}
+        <label className="settings-toggle-row">
+          <span>ミス時にリセット</span>
+          <input
+            type="checkbox"
+            checked={reviewInterval.resetOnMistake}
+            onChange={e => onUpdateDeck(deck.id, {
+              reviewInterval: { ...reviewInterval, resetOnMistake: e.target.checked }
+            })}
+          />
+        </label>
+      </section>
+
+      {/* ===== 外部セクション ===== */}
+      <h2 className="settings-group-title">外部</h2>
+
+      {/* デッキをコピー */}
       <section className="settings-section">
         <h2 className="settings-section-title">📋 デッキをコピー</h2>
         <p className="settings-description">
@@ -162,7 +340,24 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
         </button>
       </section>
 
-      {/* ② Markdown化 */}
+      {/* カードを反転 */}
+      <section className="settings-section">
+        <h2 className="settings-section-title">🔄 カードを反転</h2>
+        <p className="settings-description">
+          全カードの「問題面」と「答え面」を入れ替えます。
+          <br />
+          <span className="settings-warning">⚠️ 学習履歴はリセットされます</span>
+        </p>
+        <button
+          className="btn btn-danger"
+          onClick={handleFlip}
+          disabled={deckCards.length === 0 || flipDone}
+        >
+          {flipDone ? '✅ 反転完了' : '反転する'}
+        </button>
+      </section>
+
+      {/* Markdownにする */}
       <section className="settings-section">
         <h2 className="settings-section-title">📝 Markdownにする</h2>
         <p className="settings-description">
@@ -203,88 +398,6 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
         ) : (
           <p className="settings-empty">該当するカードがありません</p>
         )}
-      </section>
-
-      {/* ③ 解説表示設定 */}
-      <section className="settings-section">
-        <h2 className="settings-section-title">💬 解説の表示タイミング</h2>
-        <p className="settings-description">
-          答え合わせ後、どの結果のときに解説を表示するか設定します。
-        </p>
-        {(['correct', 'partial', 'wrong'] as const).map(rating => {
-          const display = deck.explanationDisplay ?? DEFAULT_EXPLANATION_DISPLAY
-          const labels = { correct: '⭕️ 正解', partial: '🔺 惜しい', wrong: '❌ 不正解' }
-          return (
-            <label key={rating} className="settings-toggle-row">
-              <span>{labels[rating]}</span>
-              <input
-                type="checkbox"
-                checked={display[rating]}
-                onChange={e => {
-                  onUpdateDeck(deck.id, {
-                    explanationDisplay: {
-                      ...display,
-                      [rating]: e.target.checked,
-                    }
-                  })
-                }}
-              />
-            </label>
-          )
-        })}
-      </section>
-
-      {/* ④ 表示面設定（単語タイプのみ） */}
-      {deck.type === 'word' && deck.wordConfig && (
-        <section className="settings-section">
-          <h2 className="settings-section-title">👀 表示面の設定</h2>
-          <p className="settings-description">
-            各情報をどちらの面に表示するか設定します。
-          </p>
-          <label className="settings-toggle-row">
-            <span>発音記号</span>
-            <select
-              className="settings-side-select"
-              value={deck.wordConfig.pronunciationSide}
-              onChange={e => onUpdateDeck(deck.id, {
-                wordConfig: { ...deck.wordConfig!, pronunciationSide: e.target.value as 'question' | 'answer' }
-              })}
-            >
-              <option value="question">問題面</option>
-              <option value="answer">答え面</option>
-            </select>
-          </label>
-          <label className="settings-toggle-row">
-            <span>接頭辞・語源</span>
-            <select
-              className="settings-side-select"
-              value={deck.wordConfig.etymologySide}
-              onChange={e => onUpdateDeck(deck.id, {
-                wordConfig: { ...deck.wordConfig!, etymologySide: e.target.value as 'question' | 'answer' }
-              })}
-            >
-              <option value="question">問題面</option>
-              <option value="answer">答え面</option>
-            </select>
-          </label>
-        </section>
-      )}
-
-      {/* ⑤ 反転 */}
-      <section className="settings-section">
-        <h2 className="settings-section-title">🔄 カードを反転</h2>
-        <p className="settings-description">
-          全カードの「問題面」と「答え面」を入れ替えます。
-          <br />
-          <span className="settings-warning">⚠️ 学習履歴はリセットされます</span>
-        </p>
-        <button
-          className="btn btn-danger"
-          onClick={handleFlip}
-          disabled={deckCards.length === 0 || flipDone}
-        >
-          {flipDone ? '✅ 反転完了' : '反転する'}
-        </button>
       </section>
     </div>
   )

@@ -34,7 +34,9 @@ export interface Deck {
   wordConfig?: WordConfig
   termConfig?: TermConfig
   explanationDisplay?: ExplanationDisplay
-  importSettings?: ImportSettings  // 単語タイプのMarkdownインポート設定
+  importSettings?: ImportSettings       // 単語タイプのMarkdownインポート設定
+  autoAdvance?: AutoAdvanceConfig       // 自動コマ送り設定
+  reviewInterval?: ReviewIntervalConfig // 復習間隔設定
   createdAt: number
   updatedAt: number
 }
@@ -83,6 +85,132 @@ export function getPriority(selfRating: Rating, answerRating: Rating): number {
   return 7
 }
 
+// ===== 復習システム =====
+
+// カードの状態
+export type CardStatus = 'new' | 'mastered' | 'review_needed' | 'unmastered'
+
+// カードごとのSRSデータ
+export interface CardSRS {
+  status: CardStatus
+  interval: number            // 現在の復習間隔（日数）
+  nextReview: number          // 次回復習日（タイムスタンプ）
+  consecutiveCorrect: number  // 連続正解数（間隔増加用）
+}
+
+export interface SRSData {
+  [cardId: string]: CardSRS
+}
+
+// 自動コマ送り設定
+export interface AutoAdvanceConfig {
+  enabled: boolean
+  seconds: number  // 何秒後に自動で裏返すか
+}
+
+export const DEFAULT_AUTO_ADVANCE: AutoAdvanceConfig = {
+  enabled: false,
+  seconds: 5,
+}
+
+// 復習間隔設定
+export interface ReviewIntervalConfig {
+  mode: 'fixed' | 'increasing'  // 固定 or 増加
+  baseDays: number              // 基本間隔（日数）
+  maxDays: number               // 増加モード時の上限
+  resetOnMistake: boolean       // ミス時に間隔をリセットするか
+}
+
+export const DEFAULT_REVIEW_INTERVAL: ReviewIntervalConfig = {
+  mode: 'increasing',
+  baseDays: 1,
+  maxDays: 7,
+  resetOnMistake: true,
+}
+
+// グローバル設定（基本設定）
+export interface GlobalSettings {
+  defaultWordConfig: WordConfig
+  defaultExplanationDisplay: ExplanationDisplay
+  defaultAutoAdvance: AutoAdvanceConfig
+  defaultReviewInterval: ReviewIntervalConfig
+  defaultImportSettings: ImportSettings
+}
+
+// ===== 状態遷移ロジック =====
+
+export function determineCardStatus(
+  selfRating: Rating,
+  answerRating: Rating,
+  currentStatus: CardStatus
+): CardStatus {
+  // 新規カード: どの結果でも「復習必要」に送る
+  if (currentStatus === 'new') return 'review_needed'
+
+  // ❌（自己評価）→ 全て未定着
+  if (selfRating === 'wrong') return 'unmastered'
+
+  // ⭕️→⭕️ = 定着
+  if (selfRating === 'correct' && answerRating === 'correct') return 'mastered'
+  // ⭕️→🔺 = 復習必要
+  if (selfRating === 'correct' && answerRating === 'partial') return 'review_needed'
+  // ⭕️→❌ = 未定着
+  if (selfRating === 'correct' && answerRating === 'wrong') return 'unmastered'
+
+  // 🔺→⭕️ = 復習必要
+  if (selfRating === 'partial' && answerRating === 'correct') return 'review_needed'
+  // 🔺→🔺 = 復習必要
+  if (selfRating === 'partial' && answerRating === 'partial') return 'review_needed'
+  // 🔺→❌ = 未定着
+  if (selfRating === 'partial' && answerRating === 'wrong') return 'unmastered'
+
+  return 'unmastered'
+}
+
+// 次回復習日を計算
+export function calculateNextReview(
+  newStatus: CardStatus,
+  currentSRS: CardSRS | undefined,
+  config: ReviewIntervalConfig
+): { nextReview: number; interval: number; consecutiveCorrect: number } {
+  const now = Date.now()
+  const DAY = 24 * 60 * 60 * 1000
+
+  if (newStatus === 'mastered') {
+    const prevConsecutive = currentSRS?.consecutiveCorrect ?? 0
+    const newConsecutive = prevConsecutive + 1
+
+    let interval: number
+    if (config.mode === 'fixed') {
+      interval = config.baseDays
+    } else {
+      // 増加: baseDays * consecutive（1→2→3...最大maxDays）
+      interval = Math.min(config.baseDays * newConsecutive, config.maxDays)
+    }
+
+    return {
+      nextReview: now + interval * DAY,
+      interval,
+      consecutiveCorrect: newConsecutive,
+    }
+  }
+
+  if (newStatus === 'review_needed') {
+    return {
+      nextReview: now, // すぐ復習キューに入る
+      interval: 0,
+      consecutiveCorrect: 0,
+    }
+  }
+
+  // unmastered / new
+  return {
+    nextReview: 0,
+    interval: 0,
+    consecutiveCorrect: 0,
+  }
+}
+
 export const DEFAULT_WORD_CONFIG: WordConfig = {
   pronunciationSide: 'question',
   etymologySide: 'question',
@@ -105,4 +233,12 @@ export const DEFAULT_IMPORT_SETTINGS: ImportSettings = {
 export const DECK_TYPE_LABELS: Record<DeckType, string> = {
   'word': '単語',
   'term': '用語',
+}
+
+export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
+  defaultWordConfig: { ...DEFAULT_WORD_CONFIG },
+  defaultExplanationDisplay: { ...DEFAULT_EXPLANATION_DISPLAY },
+  defaultAutoAdvance: { ...DEFAULT_AUTO_ADVANCE },
+  defaultReviewInterval: { ...DEFAULT_REVIEW_INTERVAL },
+  defaultImportSettings: { ...DEFAULT_IMPORT_SETTINGS },
 }

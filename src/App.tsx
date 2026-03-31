@@ -7,6 +7,7 @@ import ImportPage from './pages/ImportPage'
 import StudyPage from './pages/StudyPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import DeckSettingsPage from './pages/DeckSettingsPage'
+import GlobalSettingsPage from './pages/GlobalSettingsPage'
 import './App.css'
 
 export default function App() {
@@ -98,6 +99,18 @@ export default function App() {
                 onAddDeck={addDeck}
                 onAddCards={addCards}
                 onUpdateCard={updateCard}
+                onUpdateDeck={updateDeck}
+              />
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <GlobalSettingsPage
+                decks={decks}
+                cards={cards}
+                onAddDeck={addDeck}
+                onAddCards={addCards}
                 onUpdateDeck={updateDeck}
               />
             }

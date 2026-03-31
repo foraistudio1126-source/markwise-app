@@ -1,29 +1,48 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import type { Deck, Card, Rating } from '../types'
-import { getPriority, DEFAULT_EXPLANATION_DISPLAY } from '../types'
-import { getLatestRecord, addStudyRecord } from '../utils/storage'
+import {
+  getPriority,
+  DEFAULT_EXPLANATION_DISPLAY,
+  DEFAULT_AUTO_ADVANCE,
+  DEFAULT_REVIEW_INTERVAL,
+  determineCardStatus,
+  calculateNextReview,
+} from '../types'
+import {
+  getLatestRecord,
+  addStudyRecord,
+  getCardSRS,
+  updateCardSRS,
+  getReviewDueCards,
+} from '../utils/storage'
 
 interface Props {
   decks: Deck[]
   cards: Card[]
 }
 
-type Step = 'question' | 'answer' | 'explanation' | 'done'
+type Step = 'question' | 'answer' | 'explanation' | 'done' | 'retest_intro' | 'retest'
+type StudyMode = 'all' | 'unmastered' | 'review'
 
 export default function StudyPage({ decks, cards }: Props) {
   const { deckId } = useParams<{ deckId: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const mode = searchParams.get('mode')
+  const mode = (searchParams.get('mode') || 'all') as StudyMode
   const deck = decks.find(d => d.id === deckId)
+
   const deckCards = useMemo(() => {
     const all = cards.filter(c => c.deckId === deckId)
     if (mode === 'unmastered') {
       return all.filter(c => {
-        const r = getLatestRecord(c.id)
-        return !r || r.answerRating !== 'correct'
+        const srs = getCardSRS(c.id)
+        return !srs || srs.status === 'unmastered' || srs.status === 'new'
       })
+    }
+    if (mode === 'review') {
+      const reviewIds = new Set(getReviewDueCards(all.map(c => c.id)))
+      return all.filter(c => reviewIds.has(c.id))
     }
     return all
   }, [cards, deckId, mode])
@@ -32,6 +51,17 @@ export default function StudyPage({ decks, cards }: Props) {
   const [selfRating, setSelfRating] = useState<Rating | null>(null)
   const [, setAnswerRating] = useState<Rating | null>(null)
   const [isFlipped, setIsFlipped] = useState(false)
+  const [skipTransition, setSkipTransition] = useState(false)
+
+  // 未定着カードの再テスト用
+  const [unmasteredIds, setUnmasteredIds] = useState<Set<string>>(new Set())
+  const [retestCards, setRetestCards] = useState<Card[]>([])
+  const [retestIndex, setRetestIndex] = useState(0)
+  const [isRetesting, setIsRetesting] = useState(false)
+
+  // 自動コマ送り用
+  const autoAdvanceConfig = deck?.autoAdvance ?? DEFAULT_AUTO_ADVANCE
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const sortedCards = useMemo(() => {
     const shuffled = [...deckCards].sort(() => Math.random() - 0.5)
@@ -46,9 +76,34 @@ export default function StudyPage({ decks, cards }: Props) {
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [studiedCount, setStudiedCount] = useState(0)
-  const currentCard = sortedCards[currentIndex]
+  const currentCard = isRetesting ? retestCards[retestIndex] : sortedCards[currentIndex]
 
-  const [skipTransition, setSkipTransition] = useState(false)
+  // 自動コマ送りタイマー
+  useEffect(() => {
+    if (autoTimerRef.current) {
+      clearTimeout(autoTimerRef.current)
+      autoTimerRef.current = null
+    }
+
+    if (autoAdvanceConfig.enabled && step === 'question' && !isRetesting) {
+      autoTimerRef.current = setTimeout(() => {
+        if (currentCard) {
+          // 自動コマ送り: 未定着扱いで自動的に裏返す
+          setSelfRating('wrong')
+          setIsFlipped(true)
+          setStep('answer')
+        }
+      }, autoAdvanceConfig.seconds * 1000)
+    }
+
+    return () => {
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current)
+      }
+    }
+  }, [step, currentIndex, autoAdvanceConfig.enabled, autoAdvanceConfig.seconds, isRetesting, currentCard])
+
+  const reviewConfig = deck?.reviewInterval ?? DEFAULT_REVIEW_INTERVAL
 
   const goNext = useCallback(() => {
     setSkipTransition(true)
@@ -57,17 +112,33 @@ export default function StudyPage({ decks, cards }: Props) {
     setAnswerRating(null)
 
     requestAnimationFrame(() => {
-      if (currentIndex + 1 < sortedCards.length) {
+      if (isRetesting) {
+        // 再テストモード
+        if (retestIndex + 1 < retestCards.length) {
+          setRetestIndex(retestIndex + 1)
+          setStep('retest')
+        } else {
+          setStep('done')
+        }
+      } else if (currentIndex + 1 < sortedCards.length) {
         setCurrentIndex(currentIndex + 1)
         setStep('question')
       } else {
-        setStep('done')
+        // メインセッション終了 → 未定着があれば再テスト
+        if (unmasteredIds.size > 0) {
+          const retestList = sortedCards.filter(c => unmasteredIds.has(c.id))
+          setRetestCards(retestList.sort(() => Math.random() - 0.5))
+          setRetestIndex(0)
+          setStep('retest_intro')
+        } else {
+          setStep('done')
+        }
       }
       requestAnimationFrame(() => {
         setSkipTransition(false)
       })
     })
-  }, [currentIndex, sortedCards.length])
+  }, [currentIndex, sortedCards, isRetesting, retestIndex, retestCards, unmasteredIds])
 
   const handleSelfRate = (rating: Rating) => {
     setSelfRating(rating)
@@ -79,12 +150,68 @@ export default function StudyPage({ decks, cards }: Props) {
     setAnswerRating(rating)
     setStudiedCount(prev => prev + 1)
 
+    // 学習記録を保存
     addStudyRecord(currentCard.id, {
       cardId: currentCard.id,
       selfRating: selfRating!,
       answerRating: rating,
       timestamp: Date.now(),
     })
+
+    if (!isRetesting) {
+      // SRS状態を更新
+      const currentSRS = getCardSRS(currentCard.id)
+      const currentStatus = currentSRS?.status ?? 'new'
+      const newStatus = determineCardStatus(selfRating!, rating, currentStatus)
+
+      const { nextReview, interval, consecutiveCorrect } = calculateNextReview(
+        newStatus, currentSRS, reviewConfig
+      )
+
+      // 定着カードがミスした場合の間隔リセット
+      const finalConsecutive = (
+        currentStatus === 'mastered' && newStatus !== 'mastered' && reviewConfig.resetOnMistake
+      ) ? 0 : consecutiveCorrect
+
+      updateCardSRS(currentCard.id, {
+        status: newStatus,
+        interval,
+        nextReview,
+        consecutiveCorrect: finalConsecutive,
+      })
+
+      // 未定着カードを記録
+      if (newStatus === 'unmastered') {
+        setUnmasteredIds(prev => new Set(prev).add(currentCard.id))
+      }
+    }
+
+    // 解説表示判定
+    const display = deck?.explanationDisplay ?? DEFAULT_EXPLANATION_DISPLAY
+    const shouldShow =
+      (rating === 'correct' && display.correct) ||
+      (rating === 'partial' && display.partial) ||
+      (rating === 'wrong' && display.wrong)
+
+    if (shouldShow) {
+      setStep('explanation')
+    } else {
+      goNext()
+    }
+  }
+
+  // 再テスト用: 簡易的な答え合わせ（状態は変わらない）
+  const handleRetestRate = (rating: Rating) => {
+    setAnswerRating(rating)
+    setStudiedCount(prev => prev + 1)
+
+    addStudyRecord(currentCard.id, {
+      cardId: currentCard.id,
+      selfRating: selfRating!,
+      answerRating: rating,
+      timestamp: Date.now(),
+    })
+    // 再テストではSRS状態を変更しない
 
     const display = deck?.explanationDisplay ?? DEFAULT_EXPLANATION_DISPLAY
     const shouldShow =
@@ -111,8 +238,31 @@ export default function StudyPage({ decks, cards }: Props) {
   if (deckCards.length === 0) {
     return (
       <div className="page">
-        <p>カードがありません</p>
+        <p>{mode === 'review' ? '復習するカードがありません' : 'カードがありません'}</p>
         <button className="btn" onClick={() => navigate(`/deck/${deckId}`)}>戻る</button>
+      </div>
+    )
+  }
+
+  // 再テスト導入画面
+  if (step === 'retest_intro') {
+    return (
+      <div className="page study-done">
+        <h1>未定着カードの確認</h1>
+        <p>{unmasteredIds.size}枚の未定着カードをもう一度確認します</p>
+        <p className="text-secondary">ここで正解しても定着にはなりません</p>
+        <button
+          className="btn btn-primary btn-large"
+          onClick={() => {
+            setIsRetesting(true)
+            setStep('retest')
+            setIsFlipped(false)
+            setSelfRating(null)
+            setAnswerRating(null)
+          }}
+        >
+          確認を始める
+        </button>
       </div>
     )
   }
@@ -122,6 +272,7 @@ export default function StudyPage({ decks, cards }: Props) {
       <div className="page study-done">
         <h1>学習完了！</h1>
         <p>{studiedCount}枚のカードを学習しました</p>
+        {isRetesting && <p className="text-secondary">未定着カードの確認も完了しました</p>}
         <button className="btn btn-primary btn-large" onClick={() => navigate(`/deck/${deckId}`)}>
           デッキに戻る
         </button>
@@ -132,6 +283,10 @@ export default function StudyPage({ decks, cards }: Props) {
           setSelfRating(null)
           setAnswerRating(null)
           setIsFlipped(false)
+          setUnmasteredIds(new Set())
+          setRetestCards([])
+          setRetestIndex(0)
+          setIsRetesting(false)
         }}>
           もう一度
         </button>
@@ -142,18 +297,18 @@ export default function StudyPage({ decks, cards }: Props) {
   // 用語タイプの表示
   const isTerm = deck.type === 'term' && deck.termConfig
   const termConfig = deck.termConfig
-
-  // 単語タイプの設定
   const wordConfig = deck.wordConfig
 
   // 解説があるかどうか
-  const hasExplanation = isTerm
-    ? (termConfig?.explanationColumns?.length ?? 0) > 0 && currentCard.columns &&
-      termConfig!.explanationColumns.some(ci => currentCard.columns![ci]?.trim())
-    : currentCard.synonyms || currentCard.antonyms || currentCard.exampleEn || currentCard.exampleJa
+  const hasExplanation = currentCard && (
+    isTerm
+      ? (termConfig?.explanationColumns?.length ?? 0) > 0 && currentCard.columns &&
+        termConfig!.explanationColumns.some(ci => currentCard.columns![ci]?.trim())
+      : currentCard.synonyms || currentCard.antonyms || currentCard.exampleEn || currentCard.exampleJa
+  )
 
-  // 問題面・答え面のコンテンツ生成
   const renderQuestionContent = () => {
+    if (!currentCard) return null
     if (isTerm && termConfig && currentCard.columns) {
       return (
         <>
@@ -166,8 +321,6 @@ export default function StudyPage({ decks, cards }: Props) {
         </>
       )
     }
-
-    // 単語タイプ
     return (
       <>
         <div className="study-card-word">{currentCard.word}</div>
@@ -182,6 +335,7 @@ export default function StudyPage({ decks, cards }: Props) {
   }
 
   const renderAnswerContent = () => {
+    if (!currentCard) return null
     if (isTerm && termConfig && currentCard.columns) {
       return (
         <>
@@ -197,8 +351,6 @@ export default function StudyPage({ decks, cards }: Props) {
         </>
       )
     }
-
-    // 単語タイプ
     return (
       <>
         <div className="study-card-word-small">{currentCard.word}</div>
@@ -221,14 +373,20 @@ export default function StudyPage({ decks, cards }: Props) {
     )
   }
 
+  const totalCards = isRetesting ? retestCards.length : sortedCards.length
+  const currentIdx = isRetesting ? retestIndex : currentIndex
+
   return (
     <div className="page study-page">
       <header className="study-header">
         <button className="btn-back" onClick={() => navigate(`/deck/${deckId}`)}>← 終了</button>
         <div className="study-progress">
-          <span>{currentIndex + 1} / {sortedCards.length}</span>
+          <span>
+            {isRetesting && <span className="study-retest-badge">確認</span>}
+            {currentIdx + 1} / {totalCards}
+          </span>
           <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${((currentIndex) / sortedCards.length) * 100}%` }} />
+            <div className="progress-fill" style={{ width: `${((currentIdx) / totalCards) * 100}%` }} />
           </div>
         </div>
       </header>
@@ -236,22 +394,19 @@ export default function StudyPage({ decks, cards }: Props) {
       <div className="study-content">
         <div className="study-card-container">
           <div className={`study-card ${isFlipped ? 'flipped' : ''} ${skipTransition ? 'no-transition' : ''}`}>
-            {/* 問題面 */}
             <div className="study-card-front">
               {renderQuestionContent()}
             </div>
-            {/* 答え面 */}
             <div className="study-card-back">
               {renderAnswerContent()}
             </div>
           </div>
         </div>
 
-        {/* 解説（Step 3） */}
+        {/* 解説 */}
         {step === 'explanation' && hasExplanation && (
           <div className="explanation-section">
             {isTerm && termConfig && currentCard.columns ? (
-              // 用語タイプ: 解説面の列を表示
               termConfig.explanationColumns.map(colIdx => {
                 const val = currentCard.columns![colIdx]?.trim()
                 if (!val) return null
@@ -264,7 +419,6 @@ export default function StudyPage({ decks, cards }: Props) {
                 )
               })
             ) : (
-              // 単語タイプ
               <>
                 {currentCard.definition && (
                   <div className="explanation-item explanation-definition">
@@ -301,9 +455,11 @@ export default function StudyPage({ decks, cards }: Props) {
 
       {/* ボタンエリア */}
       <div className="study-buttons">
-        {step === 'question' && (
+        {(step === 'question' || step === 'retest') && (
           <>
-            <p className="study-prompt">分かりますか？</p>
+            <p className="study-prompt">
+              {isRetesting ? '覚えていますか？（確認のみ）' : '分かりますか？'}
+            </p>
             <div className="rating-buttons">
               <button className="rating-btn rating-correct" onClick={() => handleSelfRate('correct')}>⭕️</button>
               <button className="rating-btn rating-partial" onClick={() => handleSelfRate('partial')}>🔺</button>
@@ -315,9 +471,9 @@ export default function StudyPage({ decks, cards }: Props) {
           <>
             <p className="study-prompt">合っていましたか？</p>
             <div className="rating-buttons">
-              <button className="rating-btn rating-correct" onClick={() => handleAnswerRate('correct')}>⭕️</button>
-              <button className="rating-btn rating-partial" onClick={() => handleAnswerRate('partial')}>🔺</button>
-              <button className="rating-btn rating-wrong" onClick={() => handleAnswerRate('wrong')}>❌</button>
+              <button className="rating-btn rating-correct" onClick={() => (isRetesting ? handleRetestRate : handleAnswerRate)('correct')}>⭕️</button>
+              <button className="rating-btn rating-partial" onClick={() => (isRetesting ? handleRetestRate : handleAnswerRate)('partial')}>🔺</button>
+              <button className="rating-btn rating-wrong" onClick={() => (isRetesting ? handleRetestRate : handleAnswerRate)('wrong')}>❌</button>
             </div>
           </>
         )}

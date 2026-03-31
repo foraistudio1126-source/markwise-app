@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import type { Deck, Card } from '../types'
 import { DECK_TYPE_LABELS } from '../types'
-import { getLatestRecord } from '../utils/storage'
+import { getCardSRS, getReviewDueCards } from '../utils/storage'
 
 interface Props {
   decks: Deck[]
@@ -25,9 +25,14 @@ export default function DeckDetailPage({ decks, cards, onDeleteCard }: Props) {
   }
 
   const mastered = deckCards.filter(c => {
-    const r = getLatestRecord(c.id)
-    return r?.answerRating === 'correct'
+    const srs = getCardSRS(c.id)
+    return srs?.status === 'mastered'
   }).length
+  const unmastered = deckCards.filter(c => {
+    const srs = getCardSRS(c.id)
+    return !srs || srs.status === 'unmastered' || srs.status === 'new'
+  }).length
+  const reviewDueCount = getReviewDueCards(deckCards.map(c => c.id)).length
   const percent = deckCards.length > 0 ? Math.round((mastered / deckCards.length) * 100) : 0
 
   const handleDeleteCard = (e: React.MouseEvent, card: Card) => {
@@ -67,12 +72,20 @@ export default function DeckDetailPage({ decks, cards, onDeleteCard }: Props) {
             >
               暗記を始める
             </button>
-            {deckCards.length - mastered > 0 && (
+            {reviewDueCount > 0 && (
+              <button
+                className="btn btn-large btn-review"
+                onClick={() => navigate(`/study/${deckId}?mode=review`)}
+              >
+                🔄 復習（{reviewDueCount}枚）
+              </button>
+            )}
+            {unmastered > 0 && (
               <button
                 className="btn btn-large"
                 onClick={() => navigate(`/study/${deckId}?mode=unmastered`)}
               >
-                未定着のみ（{deckCards.length - mastered}枚）
+                未定着のみ（{unmastered}枚）
               </button>
             )}
           </>
@@ -111,11 +124,12 @@ export default function DeckDetailPage({ decks, cards, onDeleteCard }: Props) {
           </div>
         )}
         {deckCards.map(card => {
-          const record = getLatestRecord(card.id)
-          const statusIcon = record
-            ? record.answerRating === 'correct' ? '⭕️'
-              : record.answerRating === 'partial' ? '🔺'
-              : '❌'
+          const srs = getCardSRS(card.id)
+          const statusIcon = srs
+            ? srs.status === 'mastered' ? '⭕️'
+              : srs.status === 'review_needed' ? '🔺'
+              : srs.status === 'unmastered' ? '❌'
+              : '🆕'
             : '—'
 
           // 用語タイプの場合、問題面の列を表示

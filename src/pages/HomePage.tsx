@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Deck, DeckType, WordConfig, ExplanationDisplay } from '../types'
 import { DECK_TYPE_LABELS, DEFAULT_WORD_CONFIG, DEFAULT_EXPLANATION_DISPLAY } from '../types'
-import { getLatestRecord } from '../utils/storage'
+import { getCardSRS } from '../utils/storage'
 import type { Card } from '../types'
 
 interface Props {
@@ -20,6 +20,8 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
   const [newType, setNewType] = useState<DeckType>('word')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchMode, setSearchMode] = useState<'deck' | 'word'>('deck')
 
   // 単語タイプ設定
   const [wordConfig, setWordConfig] = useState<WordConfig>({ ...DEFAULT_WORD_CONFIG })
@@ -105,8 +107,8 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
     const deckCards = cards.filter(c => c.deckId === deckId)
     if (deckCards.length === 0) return { total: 0, mastered: 0, percent: 0 }
     const mastered = deckCards.filter(c => {
-      const record = getLatestRecord(c.id)
-      return record?.answerRating === 'correct'
+      const srs = getCardSRS(c.id)
+      return srs?.status === 'mastered'
     }).length
     return {
       total: deckCards.length,
@@ -114,6 +116,29 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
       percent: Math.round((mastered / deckCards.length) * 100),
     }
   }
+
+  // 検索結果
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return null
+
+    if (searchMode === 'deck') {
+      return {
+        type: 'deck' as const,
+        decks: decks.filter(d => d.name.toLowerCase().includes(q)),
+      }
+    } else {
+      const matched = cards.filter(c =>
+        c.word.toLowerCase().includes(q) ||
+        c.meaning.toLowerCase().includes(q) ||
+        c.pronunciation.toLowerCase().includes(q)
+      )
+      return {
+        type: 'word' as const,
+        cards: matched,
+      }
+    }
+  }, [searchQuery, searchMode, decks, cards])
 
   const handleTermColumnsChange = (count: number) => {
     setTermTotalColumns(count)
@@ -131,7 +156,75 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
     <div className="page">
       <header className="page-header">
         <h1><img src="/icon-192.png" alt="" className="app-logo" />Markwise</h1>
+        <button
+          className="btn-icon header-settings-btn"
+          onClick={() => navigate('/settings')}
+          title="基本設定"
+        >⚙️</button>
       </header>
+
+      {/* 検索バー */}
+      <div className="search-bar">
+        <div className="search-input-row">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            className="search-input"
+            placeholder={searchMode === 'deck' ? 'デッキ名で検索...' : '単語・意味で検索...'}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          <select
+            className="search-mode-select"
+            value={searchMode}
+            onChange={e => setSearchMode(e.target.value as 'deck' | 'word')}
+          >
+            <option value="deck">デッキ</option>
+            <option value="word">単語</option>
+          </select>
+        </div>
+      </div>
+
+      {/* 検索結果 */}
+      {searchResults && searchQuery.trim() && (
+        <div className="search-results">
+          {searchResults.type === 'deck' ? (
+            searchResults.decks.length === 0 ? (
+              <p className="text-secondary">該当するデッキがありません</p>
+            ) : (
+              searchResults.decks.map(d => (
+                <div key={d.id} className="deck-card" onClick={() => navigate(`/deck/${d.id}`)}>
+                  <div className="deck-info">
+                    <h3 className="deck-name">{d.name}</h3>
+                    <span className="deck-type-badge">{DECK_TYPE_LABELS[d.type]}</span>
+                  </div>
+                </div>
+              ))
+            )
+          ) : (
+            searchResults.cards.length === 0 ? (
+              <p className="text-secondary">該当する単語がありません</p>
+            ) : (
+              searchResults.cards.slice(0, 50).map(c => {
+                const deckName = decks.find(d => d.id === c.deckId)?.name || ''
+                return (
+                  <div
+                    key={c.id}
+                    className="card-item"
+                    onClick={() => navigate(`/deck/${c.deckId}/edit/${c.id}`)}
+                  >
+                    <div className="card-item-main">
+                      <span className="card-word">{c.word}</span>
+                      <span className="card-meaning">{c.meaning}</span>
+                    </div>
+                    <span className="search-result-deck">{deckName}</span>
+                  </div>
+                )
+              })
+            )
+          )}
+        </div>
+      )}
 
       <div className="deck-list">
         {decks.length === 0 && (

@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import type { Deck, Card } from '../types'
 import { DECK_TYPE_LABELS } from '../types'
-import { loadHistory } from '../utils/storage'
+import { loadHistory, loadSRS } from '../utils/storage'
 import type { StudyRecord } from '../types'
 
 interface Props {
@@ -43,13 +43,11 @@ function pct(n: number, total: number): string {
   return Math.round((n / total) * 100).toString()
 }
 
-// 覚え間違いのカードIDを取得（self⭕️ × answer❌）
 function getMisrememberedCardIds(history: Record<string, StudyRecord[]>, deckCards: Card[]): string[] {
   const ids: string[] = []
   for (const card of deckCards) {
     const recs = history[card.id]
     if (!recs) continue
-    // 最新の記録で覚え間違いがあるか
     const latest = recs[recs.length - 1]
     if (latest && latest.selfRating === 'correct' && latest.answerRating === 'wrong') {
       ids.push(card.id)
@@ -64,6 +62,48 @@ export default function AnalyticsPage({ decks, cards }: Props) {
   const deck = decks.find(d => d.id === deckId)
   const deckCards = cards.filter(c => c.deckId === deckId)
   const [showMisremembered, setShowMisremembered] = useState(false)
+
+  // SRSデータに基づく状態分布と復習予想
+  const srsStats = useMemo(() => {
+    const srsData = loadSRS()
+    const now = Date.now()
+    const DAY = 24 * 60 * 60 * 1000
+
+    let newCount = 0
+    let masteredCount = 0
+    let reviewNeededCount = 0
+    let unmasteredCount = 0
+
+    const reviewForecast: number[] = [0, 0, 0, 0, 0, 0, 0] // 今日〜7日後
+
+    for (const card of deckCards) {
+      const srs = srsData[card.id]
+      if (!srs) {
+        newCount++
+        continue
+      }
+      switch (srs.status) {
+        case 'new': newCount++; break
+        case 'mastered':
+          masteredCount++
+          // 復習予想に追加
+          if (srs.nextReview > 0) {
+            const daysUntil = Math.max(0, Math.floor((srs.nextReview - now) / DAY))
+            if (daysUntil < 7) {
+              reviewForecast[daysUntil]++
+            }
+          }
+          break
+        case 'review_needed':
+          reviewNeededCount++
+          reviewForecast[0]++ // 今日が復習日
+          break
+        case 'unmastered': unmasteredCount++; break
+      }
+    }
+
+    return { newCount, masteredCount, reviewNeededCount, unmasteredCount, reviewForecast }
+  }, [deckCards])
 
   if (!deck) {
     return (
@@ -87,6 +127,8 @@ export default function AnalyticsPage({ decks, cards }: Props) {
 
   const isTerm = deck.type === 'term' && deck.termConfig
 
+  const dayLabels = ['今日', '明日', '2日後', '3日後', '4日後', '5日後', '6日後']
+
   return (
     <div className="page">
       <header className="page-header">
@@ -98,6 +140,59 @@ export default function AnalyticsPage({ decks, cards }: Props) {
       </header>
 
       <div className="analytics-deck-name">{deck.name}</div>
+
+      {/* カード状態の分布 */}
+      <div className="analytics-section">
+        <h2 className="analytics-section-title">カードの状態</h2>
+        <div className="analytics-status-grid">
+          <div className="analytics-status-item">
+            <span className="analytics-status-num">{srsStats.masteredCount}</span>
+            <span className="analytics-status-label">⭕️ 定着</span>
+          </div>
+          <div className="analytics-status-item">
+            <span className="analytics-status-num">{srsStats.reviewNeededCount}</span>
+            <span className="analytics-status-label">🔺 復習必要</span>
+          </div>
+          <div className="analytics-status-item">
+            <span className="analytics-status-num">{srsStats.unmasteredCount}</span>
+            <span className="analytics-status-label">❌ 未定着</span>
+          </div>
+          <div className="analytics-status-item">
+            <span className="analytics-status-num">{srsStats.newCount}</span>
+            <span className="analytics-status-label">🆕 新規</span>
+          </div>
+        </div>
+        {deckCards.length > 0 && (
+          <div className="analytics-bar-track" style={{ marginTop: 8, height: 12 }}>
+            <div
+              className="analytics-bar-fill analytics-bar-correct"
+              style={{ width: `${pct(srsStats.masteredCount, deckCards.length)}%`, position: 'absolute', left: 0 }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 復習予想 */}
+      <div className="analytics-section">
+        <h2 className="analytics-section-title">復習予想（7日間）</h2>
+        <p className="analytics-section-desc">各日に復習が必要になるカード数</p>
+        <div className="analytics-forecast">
+          {srsStats.reviewForecast.map((count, i) => (
+            <div key={i} className="analytics-forecast-day">
+              <div className="analytics-forecast-bar-wrapper">
+                <div
+                  className="analytics-forecast-bar"
+                  style={{
+                    height: `${Math.min(100, count > 0 ? Math.max(10, (count / Math.max(...srsStats.reviewForecast, 1)) * 100) : 0)}%`
+                  }}
+                />
+              </div>
+              <span className="analytics-forecast-count">{count}</span>
+              <span className="analytics-forecast-label">{dayLabels[i]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {stats.total === 0 ? (
         <div className="empty-state">
@@ -168,7 +263,6 @@ export default function AnalyticsPage({ decks, cards }: Props) {
               {pct(stats.misremembered, stats.total)}%
             </span>
 
-            {/* 覚え間違いカード一覧 */}
             {misrememberedCards.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <button
