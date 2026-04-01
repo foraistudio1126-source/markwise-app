@@ -166,7 +166,7 @@ export default function AnalyticsPage({ decks, cards }: Props) {
           <div className="analytics-bar-track" style={{ marginTop: 8, height: 12 }}>
             <div
               className="analytics-bar-fill analytics-bar-correct"
-              style={{ width: `${pct(srsStats.masteredCount, deckCards.length)}%`, position: 'absolute', left: 0 }}
+              style={{ width: `${pct(srsStats.masteredCount, deckCards.length)}%` }}
             />
           </div>
         )}
