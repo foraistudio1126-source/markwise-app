@@ -92,10 +92,10 @@
   width: 28px;
   height: 28px;
   border-radius: 7px;
-  background: linear-gradient(145deg, #e8e8e8, #d0d0d0);
+  background: linear-gradient(145deg, #fafafa, #eaeaea);
   box-shadow:
-    2px 2px 5px rgba(0,0,0,0.18),
-    -1px -1px 3px rgba(255,255,255,0.9);
+    2px 2px 5px rgba(0,0,0,0.12),
+    -1px -1px 3px rgba(255,255,255,1);
 }
 
 [data-theme="dark"] .search-icon {
@@ -243,10 +243,10 @@
 }
 
 .btn-icon {
-  background: linear-gradient(145deg, #e8e8e8, #d0d0d0);
+  background: linear-gradient(145deg, #fafafa, #eaeaea);
   box-shadow:
-    2px 2px 5px rgba(0,0,0,0.18),
-    -1px -1px 3px rgba(255,255,255,0.9);
+    2px 2px 5px rgba(0,0,0,0.12),
+    -1px -1px 3px rgba(255,255,255,1);
   border: none;
   cursor: pointer;
   font-size: 1rem;
@@ -1223,10 +1223,10 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: linear-gradient(145deg, #e8e8e8, #d0d0d0);
+  background: linear-gradient(145deg, #fafafa, #eaeaea);
   box-shadow:
-    2px 2px 5px rgba(0,0,0,0.18),
-    -1px -1px 3px rgba(255,255,255,0.9);
+    2px 2px 5px rgba(0,0,0,0.12),
+    -1px -1px 3px rgba(255,255,255,1);
   font-size: 0.95rem;
   flex-shrink: 0;
   vertical-align: middle;
