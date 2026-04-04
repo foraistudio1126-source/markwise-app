@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["NO_HTTPS=1", "npx", "vite", "--host"],
+      "port": 5173
+    }
+  ]
+}
