@@ -725,6 +725,10 @@
   margin-right: 4px;
 }
 
+[data-theme="dark"] .explanation-label {
+  color: #818cf8;
+}
+
 /* ===== Rating Buttons ===== */
 .study-buttons {
   padding: 12px 0;
