@@ -4,6 +4,7 @@ import type { Deck, Card } from '../types'
 import { DECK_TYPE_LABELS } from '../types'
 import { loadHistory, loadSRS } from '../utils/storage'
 import type { StudyRecord } from '../types'
+import InfoModal from '../components/InfoModal'
 
 interface Props {
   decks: Deck[]
@@ -62,6 +63,7 @@ export default function AnalyticsPage({ decks, cards }: Props) {
   const deck = decks.find(d => d.id === deckId)
   const deckCards = cards.filter(c => c.deckId === deckId)
   const [showMisremembered, setShowMisremembered] = useState(false)
+  const [infoModal, setInfoModal] = useState<{ title: string; body: string } | null>(null)
 
   // SRSデータに基づく状態分布と復習予想
   const srsStats = useMemo(() => {
@@ -143,7 +145,10 @@ export default function AnalyticsPage({ decks, cards }: Props) {
 
       {/* カード状態の分布 */}
       <div className="analytics-section">
-        <h2 className="analytics-section-title">カードの状態</h2>
+        <div className="settings-section-header">
+          <h2 className="analytics-section-title">カードの状態</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: 'カードの状態', body: '各カードの学習状態を表示します。定着・復習必要・未定着・新規の4種類に分類されます。' })}>?</button>
+        </div>
         <div className="analytics-status-grid">
           <div className="analytics-status-item">
             <span className="analytics-status-num">{srsStats.masteredCount}</span>
@@ -174,8 +179,10 @@ export default function AnalyticsPage({ decks, cards }: Props) {
 
       {/* 復習予想 */}
       <div className="analytics-section">
-        <h2 className="analytics-section-title">復習予想（7日間）</h2>
-        <p className="analytics-section-desc">各日に復習が必要になるカード数</p>
+        <div className="settings-section-header">
+          <h2 className="analytics-section-title">復習予想（7日間）</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '復習予想（7日間）', body: '今後7日間で復習が必要になるカードの数を予測します。定着済みカードの次回復習日をもとに算出します。' })}>?</button>
+        </div>
         <div className="analytics-forecast">
           {srsStats.reviewForecast.map((count, i) => (
             <div key={i} className="analytics-forecast-day">
@@ -210,7 +217,10 @@ export default function AnalyticsPage({ decks, cards }: Props) {
 
           {/* 答え別統計 */}
           <div className="analytics-section">
-            <h2 className="analytics-section-title">答え別</h2>
+            <div className="settings-section-header">
+              <h2 className="analytics-section-title">答え別</h2>
+              <button className="btn-info" onClick={() => setInfoModal({ title: '答え別', body: '全回答の中で正解・惜しい・不正解それぞれが何回あったかを表示します。' })}>?</button>
+            </div>
             <div className="analytics-bars">
               <div className="analytics-bar-row">
                 <span className="analytics-bar-label">⭕️ 正解</span>
@@ -247,8 +257,10 @@ export default function AnalyticsPage({ decks, cards }: Props) {
 
           {/* 覚え間違い統計 */}
           <div className="analytics-section">
-            <h2 className="analytics-section-title">覚え間違い</h2>
-            <p className="analytics-section-desc">自己評価⭕️なのに答え❌だった回数</p>
+            <div className="settings-section-header">
+              <h2 className="analytics-section-title">覚え間違い</h2>
+              <button className="btn-info" onClick={() => setInfoModal({ title: '覚え間違い', body: '自己評価は⭕️なのに答えが❌だった回数です。「知っているつもり」になっているカードを把握できます。' })}>?</button>
+            </div>
             <div className="analytics-highlight">
               <span className="analytics-highlight-num">{stats.misremembered}</span>
               <span className="analytics-highlight-label">回 / {stats.total}回中</span>
@@ -299,6 +311,8 @@ export default function AnalyticsPage({ decks, cards }: Props) {
           </div>
         </>
       )}
+
+      {infoModal && <InfoModal title={infoModal.title} body={infoModal.body} onClose={() => setInfoModal(null)} />}
     </div>
   )
 }

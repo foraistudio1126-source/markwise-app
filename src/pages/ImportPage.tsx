@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import type { Deck, Card, ImportSettings } from '../types'
 import { DEFAULT_IMPORT_SETTINGS } from '../types'
 import { parseMarkdownTable, parseMarkdownTableForTerm } from '../utils/markdown'
+import InfoModal from '../components/InfoModal'
 
 interface Props {
   decks: Deck[]
@@ -21,6 +22,7 @@ export default function ImportPage({ decks, onAddCards, onUpdateDeck }: Props) {
   const [importSettings, setImportSettings] = useState<ImportSettings>(
     deck?.importSettings ?? { ...DEFAULT_IMPORT_SETTINGS }
   )
+  const [infoModal, setInfoModal] = useState<{ title: string; body: string } | null>(null)
 
   if (!deck) {
     return (
@@ -103,8 +105,10 @@ export default function ImportPage({ decks, onAddCards, onUpdateDeck }: Props) {
       {/* 単語タイプのみインポート設定を表示 */}
       {!isTerm && (
         <div className="form-card">
-          <h3 className="import-settings-title">インポートする項目</h3>
-          <p className="text-secondary">単語・発音記号・品詞・意味は常にインポートされます</p>
+          <div className="settings-section-header">
+            <h3 className="import-settings-title">インポートする項目</h3>
+            <button className="btn-info" onClick={() => setInfoModal({ title: 'インポートする項目', body: '単語・発音記号・品詞・意味は常にインポートされます。追加でインポートしたい列をオンにしてください。Markdownの列順と一致している必要があります。' })}>?</button>
+          </div>
           <div className="import-settings-list">
             <label className="config-toggle-row">
               <span>接頭辞・接尾辞</span>
@@ -212,6 +216,8 @@ export default function ImportPage({ decks, onAddCards, onUpdateDeck }: Props) {
           )}
         </div>
       )}
+
+      {infoModal && <InfoModal title={infoModal.title} body={infoModal.body} onClose={() => setInfoModal(null)} />}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import {
 } from '../types'
 import { getCardSRS, loadHistory, saveHistory, loadSRS, saveSRS } from '../utils/storage'
 import { exportToMarkdown, exportToMarkdownForTerm } from '../utils/markdown'
+import InfoModal from '../components/InfoModal'
 
 type MarkdownFilter = 'all' | 'mastered' | 'unmastered'
 
@@ -30,6 +31,7 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
   const [copied, setCopied] = useState(false)
   const [copyDeckDone, setCopyDeckDone] = useState(false)
   const [flipDone, setFlipDone] = useState(false)
+  const [infoModal, setInfoModal] = useState<{ title: string; body: string } | null>(null)
 
   const masteredCards = useMemo(() =>
     deckCards.filter(c => {
@@ -136,7 +138,6 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
       }
     }
 
-    // 学習履歴とSRSデータをリセット
     const history = loadHistory()
     const srsData = loadSRS()
     for (const card of deckCards) {
@@ -164,10 +165,10 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
 
       {/* 解説表示設定 */}
       <section className="settings-section">
-        <h2 className="settings-section-title">💬 解説の表示タイミング</h2>
-        <p className="settings-description">
-          答え合わせ後、どの結果のときに解説を表示するか設定します。
-        </p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">💬</span> 解説の表示タイミング</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '💬 解説の表示タイミング', body: '答え合わせ後、どの結果のときに解説を表示するか設定します。' })}>?</button>
+        </div>
         {(['correct', 'partial', 'wrong'] as const).map(rating => {
           const display = deck.explanationDisplay ?? DEFAULT_EXPLANATION_DISPLAY
           const labels = { correct: '⭕️ 正解', partial: '🔺 惜しい', wrong: '❌ 不正解' }
@@ -194,10 +195,10 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
       {/* 表示面の設定（単語タイプのみ） */}
       {deck.type === 'word' && deck.wordConfig && (
         <section className="settings-section">
-          <h2 className="settings-section-title">👀 表示面の設定</h2>
-          <p className="settings-description">
-            各情報をどちらの面に表示するか設定します。
-          </p>
+          <div className="settings-section-header">
+            <h2 className="settings-section-title"><span className="emoji-icon">👀</span> 表示面の設定</h2>
+            <button className="btn-info" onClick={() => setInfoModal({ title: '👀 表示面の設定', body: '発音記号・接頭辞・語源をどちらの面（問題面 or 答え面）に表示するか設定します。' })}>?</button>
+          </div>
           <label className="settings-toggle-row">
             <span>発音記号</span>
             <select
@@ -229,10 +230,10 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
 
       {/* 自動コマ送り */}
       <section className="settings-section">
-        <h2 className="settings-section-title">⏱ 自動コマ送り</h2>
-        <p className="settings-description">
-          設定した秒数後にカードを自動で裏返します。自動送りされたカードは未定着扱いになります。
-        </p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">⏱</span> 自動コマ送り</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '⏱ 自動コマ送り', body: '設定した秒数後にカードを自動で裏返します。自動送りされたカードは未定着扱いになります。' })}>?</button>
+        </div>
         <label className="settings-toggle-row">
           <span>自動コマ送り</span>
           <input
@@ -262,10 +263,10 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
 
       {/* 復習間隔設定 */}
       <section className="settings-section">
-        <h2 className="settings-section-title">📅 復習間隔</h2>
-        <p className="settings-description">
-          定着したカードの復習間隔を設定します。
-        </p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">📅</span> 復習間隔</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '📅 復習間隔', body: '定着したカードの復習間隔を設定します。「増加」モードでは正解するたびに間隔が延びていきます。' })}>?</button>
+        </div>
         <label className="settings-toggle-row">
           <span>モード</span>
           <select
@@ -327,10 +328,10 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
 
       {/* デッキをコピー */}
       <section className="settings-section">
-        <h2 className="settings-section-title">📋 デッキをコピー</h2>
-        <p className="settings-description">
-          デッキとカード（{deckCards.length}枚）のコピーを作成します。学習履歴はコピーされません。
-        </p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">📋</span> デッキをコピー</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '📋 デッキをコピー', body: `デッキとカード（${deckCards.length}枚）のコピーを作成します。学習履歴はコピーされません。` })}>?</button>
+        </div>
         <button
           className="btn"
           onClick={handleCopyDeck}
@@ -342,12 +343,10 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
 
       {/* カードを反転 */}
       <section className="settings-section">
-        <h2 className="settings-section-title">🔄 カードを反転</h2>
-        <p className="settings-description">
-          全カードの「問題面」と「答え面」を入れ替えます。
-          <br />
-          <span className="settings-warning">⚠️ 学習履歴はリセットされます</span>
-        </p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">🔄</span> カードを反転</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '🔄 カードを反転', body: '全カードの「問題面」と「答え面」を入れ替えます。実行すると学習履歴がリセットされます。' })}>?</button>
+        </div>
         <button
           className="btn btn-danger"
           onClick={handleFlip}
@@ -359,10 +358,10 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
 
       {/* Markdownにする */}
       <section className="settings-section">
-        <h2 className="settings-section-title">📝 Markdownにする</h2>
-        <p className="settings-description">
-          カードをMarkdown表に変換します。インポート形式と互換性があります。
-        </p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">📝</span> Markdownにする</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '📝 Markdownにする', body: 'カードをMarkdown表に変換します。インポート形式と互換性があり、他のデッキへの移行やバックアップに使えます。' })}>?</button>
+        </div>
         <div className="settings-filter-buttons">
           <button
             className={`btn btn-small ${mdFilter === 'all' ? 'btn-primary' : ''}`}
@@ -399,6 +398,8 @@ export default function DeckSettingsPage({ decks, cards, onAddDeck, onAddCards, 
           <p className="settings-empty">該当するカードがありません</p>
         )}
       </section>
+
+      {infoModal && <InfoModal title={infoModal.title} body={infoModal.body} onClose={() => setInfoModal(null)} />}
     </div>
   )
 }

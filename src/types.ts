@@ -135,6 +135,7 @@ export interface GlobalSettings {
   defaultAutoAdvance: AutoAdvanceConfig
   defaultReviewInterval: ReviewIntervalConfig
   defaultImportSettings: ImportSettings
+  theme: 'light' | 'dark' | 'system'
 }
 
 // ===== 状態遷移ロジック =====
@@ -241,4 +242,11 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   defaultAutoAdvance: { ...DEFAULT_AUTO_ADVANCE },
   defaultReviewInterval: { ...DEFAULT_REVIEW_INTERVAL },
   defaultImportSettings: { ...DEFAULT_IMPORT_SETTINGS },
+  theme: 'system',
+}
+
+export function applyTheme(theme: GlobalSettings['theme']) {
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const isDark = theme === 'dark' || (theme === 'system' && prefersDark)
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
 }

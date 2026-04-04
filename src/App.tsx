@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useDecks, useCards } from './hooks/useStore'
 import HomePage from './pages/HomePage'
@@ -8,11 +9,26 @@ import StudyPage from './pages/StudyPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import DeckSettingsPage from './pages/DeckSettingsPage'
 import GlobalSettingsPage from './pages/GlobalSettingsPage'
+import { loadGlobalSettings } from './utils/storage'
+import { applyTheme } from './types'
 import './App.css'
 
 export default function App() {
   const { decks, addDeck, updateDeck, deleteDeck } = useDecks()
   const { cards, addCard, addCards, updateCard, deleteCard } = useCards()
+
+  useEffect(() => {
+    const settings = loadGlobalSettings()
+    applyTheme(settings.theme)
+    // システムテーマ変更を監視
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = () => {
+      const s = loadGlobalSettings()
+      if (s.theme === 'system') applyTheme('system')
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   return (
     <BrowserRouter>

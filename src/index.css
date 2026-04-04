@@ -5,11 +5,12 @@
 }
 
 :root {
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --bg: #f8fafc;
+  --primary: #3730a3;
+  --primary-hover: #312e81;
+  --bg: #f0f0f0;
   --surface: #ffffff;
-  --text: #1e293b;
+  --card-bg: #ffffff;
+  --text: #333333;
   --text-secondary: #64748b;
   --border: #e2e8f0;
   --success: #22c55e;
@@ -17,6 +18,17 @@
   --danger: #ef4444;
   --radius: 12px;
   --radius-sm: 8px;
+}
+
+[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --surface: #2e2e2e;
+  --card-bg: #2e2e2e;
+  --text: #e8e8e8;
+  --text-secondary: #e0e0e0;
+  --border: #383838;
+  --shadow-md: 0 2px 12px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
 }
 
 html, body {

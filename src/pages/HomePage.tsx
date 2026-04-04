@@ -154,36 +154,38 @@ export default function HomePage({ decks, cards, onAddDeck, onDeleteDeck, onUpda
 
   return (
     <div className="page">
-      <header className="page-header">
-        <h1><img src="/icon-192.png" alt="" className="app-logo" />Markwise</h1>
-        <button
-          className="btn-icon header-settings-btn"
-          onClick={() => navigate('/settings')}
-          title="基本設定"
-        >⚙️</button>
-      </header>
+      <div className="sticky-top">
+        <header className="page-header">
+          <h1><img src="/icon-192.png" alt="" className="app-logo" />Markwise</h1>
+          <button
+            className="btn-icon header-settings-btn"
+            onClick={() => navigate('/settings')}
+            title="基本設定"
+          >⚙️</button>
+        </header>
 
-      {/* 検索バー */}
-      <div className="search-bar">
-        <div className="search-input-row">
-          <span className="search-icon">🔍</span>
-          <input
-            type="text"
-            className="search-input"
-            placeholder={searchMode === 'deck' ? 'デッキ名で検索...' : '単語・意味で検索...'}
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-          <select
-            className="search-mode-select"
-            value={searchMode}
-            onChange={e => setSearchMode(e.target.value as 'deck' | 'word')}
-          >
-            <option value="deck">デッキ</option>
-            <option value="word">単語</option>
-          </select>
+        {/* 検索バー */}
+        <div className="search-bar">
+          <div className="search-input-row">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder={searchMode === 'deck' ? 'デッキ名で検索...' : '単語・意味で検索...'}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            <select
+              className="search-mode-select"
+              value={searchMode}
+              onChange={e => setSearchMode(e.target.value as 'deck' | 'word')}
+            >
+              <option value="deck">デッキ</option>
+              <option value="word">単語</option>
+            </select>
+          </div>
         </div>
-      </div>
+      </div>{/* /sticky-top */}
 
       {/* 検索結果 */}
       {searchResults && searchQuery.trim() && (

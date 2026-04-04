@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Deck, Card, GlobalSettings } from '../types'
+import { applyTheme } from '../types'
 import { loadGlobalSettings, saveGlobalSettings, getCardSRS } from '../utils/storage'
 import { exportToMarkdown, exportToMarkdownForTerm } from '../utils/markdown'
+import InfoModal from '../components/InfoModal'
 
 type MarkdownFilter = 'all' | 'mastered' | 'unmastered'
 
@@ -17,6 +19,9 @@ interface Props {
 export default function GlobalSettingsPage({ decks, cards, onAddDeck, onAddCards }: Props) {
   const navigate = useNavigate()
   const [settings, setSettings] = useState<GlobalSettings>(loadGlobalSettings())
+
+  // ℹ️ 説明モーダル
+  const [infoModal, setInfoModal] = useState<{ title: string; body: string } | null>(null)
 
   // デッキ結合
   const [showMerge, setShowMerge] = useState(false)
@@ -36,6 +41,7 @@ export default function GlobalSettingsPage({ decks, cards, onAddDeck, onAddCards
     const next = { ...settings, [key]: value }
     setSettings(next)
     saveGlobalSettings(next)
+    if (key === 'theme') applyTheme(value as GlobalSettings['theme'])
   }
 
   // ===== デッキ結合 =====
@@ -157,8 +163,10 @@ export default function GlobalSettingsPage({ decks, cards, onAddDeck, onAddCards
 
       {/* ===== デフォルト設定 ===== */}
       <section className="settings-section">
-        <h2 className="settings-section-title">🔧 デフォルト設定</h2>
-        <p className="settings-description">新しいデッキ作成時の初期値を変更します。</p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">🔧</span> デフォルト設定</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '🔧 デフォルト設定', body: '新しいデッキ作成時の初期値を変更します。' })}>?</button>
+        </div>
 
         <h3 className="settings-subsection-title">発音記号の表示面</h3>
         <select
@@ -293,8 +301,10 @@ export default function GlobalSettingsPage({ decks, cards, onAddDeck, onAddCards
 
       {/* ===== デッキの結合 ===== */}
       <section className="settings-section">
-        <h2 className="settings-section-title">🔗 デッキの結合</h2>
-        <p className="settings-description">複数のデッキを1つにまとめます。</p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">🔗</span> デッキの結合</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '🔗 デッキの結合', body: '複数のデッキを1つにまとめます。' })}>?</button>
+        </div>
         {!showMerge ? (
           <button className="btn" onClick={() => setShowMerge(true)}>結合するデッキを選択</button>
         ) : (
@@ -362,8 +372,10 @@ export default function GlobalSettingsPage({ decks, cards, onAddDeck, onAddCards
 
       {/* ===== 総合Markdown ===== */}
       <section className="settings-section">
-        <h2 className="settings-section-title">📝 総合Markdown</h2>
-        <p className="settings-description">複数デッキのカードをまとめてMarkdownに変換します。</p>
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">📝</span> 総合Markdown</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '📝 総合Markdown', body: '複数デッキのカードをまとめてMarkdownに変換します。' })}>?</button>
+        </div>
         {!showMarkdown ? (
           <button className="btn" onClick={() => setShowMarkdown(true)}>デッキを選択</button>
         ) : (
@@ -419,6 +431,30 @@ export default function GlobalSettingsPage({ decks, cards, onAddDeck, onAddCards
           </>
         )}
       </section>
+
+      {/* ===== テーマ ===== */}
+      <section className="settings-section">
+        <div className="settings-section-header">
+          <h2 className="settings-section-title"><span className="emoji-icon">🎨</span> テーマ</h2>
+          <button className="btn-info" onClick={() => setInfoModal({ title: '🎨 テーマ', body: 'アプリの表示テーマを選択します。' })}>?</button>
+        </div>
+        <div className="theme-button-group">
+          {(['light', 'system', 'dark'] as const).map(t => {
+            const labels = { light: '☀️ ライト', system: '🖥 システム', dark: '🌙 ダーク' }
+            return (
+              <button
+                key={t}
+                className={`btn theme-btn ${settings.theme === t ? 'theme-btn-active' : ''}`}
+                onClick={() => updateSetting('theme', t)}
+              >
+                {labels[t]}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+      {/* ===== 説明モーダル ===== */}
+      {infoModal && <InfoModal title={infoModal.title} body={infoModal.body} onClose={() => setInfoModal(null)} />}
     </div>
   )
 }
